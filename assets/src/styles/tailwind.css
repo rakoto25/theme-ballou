@@ -1,0 +1,144 @@
+@import "tailwindcss";
+@reference "tailwindcss/utilities";
+
+/* Où Tailwind scanne */
+@source "./**/*.php", "./assets/src/**/*.{ts,tsx,js,jsx}";
+
+/* Plugins v4 */
+@plugin "@tailwindcss/forms";
+@plugin "@tailwindcss/typography";
+
+/* Safelist Woo (étendu pour btn-primary) */
+@safelist woocommerce-message, woocommerce-error, woocommerce-info,
+star-rating, screen-reader-text, woocommerce-pagination,
+price, amount, button, added_to_cart, btn-primary;
+
+/* Variables marque */
+:root {
+    --brand-primary: #29235c;
+    --brand-accent: #e94e1b;
+    --brand-dark: #1b1919;
+    --brand-light: #ffffff;
+}
+
+/* Utilities perso (TOP-LEVEL, pas imbriquées) */
+@utility btn {
+    @apply inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-medium transition;
+}
+
+@utility btn-primary {
+    @apply btn text-white hover:opacity-90;
+    background: var(--brand-primary, #29235c) !important;
+    /* Fallback + important pour overrides */
+    border-color: var(--brand-primary, #29235c) !important;
+    color: var(--brand-light, #ffffff) !important;
+}
+
+@utility btn-accent {
+    @apply w-full sm:w-auto py-3 px-8 text-base font-bold rounded-full shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-[var(--brand-accent)] focus:ring-offset-2 transition-all duration-200 block text-center;
+    /* FIX COMPLET : Pilule full, bold, ombre hover, ring focus orange, responsive width */
+    background: var(--brand-accent, #e94e1b) !important;
+    color: var(--brand-light, #ffffff) !important;
+    hover: opacity-90;
+    /* Déjà via @apply, mais sûr */
+}
+
+/* NOUVEAUX : Pour charte produit (texte primary, muted) */
+@utility text-primary {
+    @apply text-[var(--brand-primary, #29235c)];
+}
+
+@utility text-muted {
+    color: var(--brand-dark, #1b1919);
+    opacity: 0.7;
+}
+
+/* Focus ring custom (pour accessibilité, si besoin étendre) */
+@utility focus-ring-accent:focus {
+    outline: none;
+    ring: 2px solid var(--brand-accent, #e94e1b);
+    ring-offset: 2px;
+}
+
+/* NOUVELLES UTILITIES pour ring/border primary (utilisées dans RegisterIsland) */
+@utility ring-primary {
+    @apply ring-[var(--brand-primary, #29235c)];
+}
+
+@utility border-primary {
+    @apply border-[var(--brand-primary, #29235c)];
+}
+
+/* Hover variant pour btn-primary (blanc sur primary, natif Tailwind) */
+@variant hover & .btn-primary {
+    background: #ffffff !important;
+    color: var(--brand-primary, #29235c) !important;
+    border-color: var(--brand-primary, #29235c) !important;
+    opacity: 1 !important;
+    /* Évite dimming indésiré */
+}
+
+/* Global pour product-summary (applique dark à titre/description) */
+@layer base {
+    .product-summary {
+        @apply text-[var(--brand-dark, #1b1919)];
+    }
+
+    .product-summary .prose {
+        @apply text-[var(--brand-dark, #1b1919)];
+    }
+
+    /* Loading/Error : Héritent */
+    .product-summary .loading,
+    .product-summary .error {
+        @apply text-[var(--brand-dark, #1b1919)];
+    }
+
+    .product-summary .error {
+        @apply text-primary;
+        /* Primary pour "Produit non trouvé" */
+    }
+
+    /* OVERRIDES GLOBAUX POUR BUTTONS (contre conflits Woo/browser rose/pink) */
+    button[type="submit"],
+    .woocommerce button,
+    .btn-primary {
+        background: var(--brand-primary, #29235c) !important;
+        color: var(--brand-light, #ffffff) !important;
+        border-color: var(--brand-primary, #29235c) !important;
+        transition: all 0.2s ease !important;
+    }
+
+    button[type="submit"]:hover,
+    .woocommerce button:hover,
+    .btn-primary:hover:not(:disabled) {
+        background: #ffffff !important;
+        color: var(--brand-primary, #29235c) !important;
+        border-color: var(--brand-primary, #29235c) !important;
+    }
+
+    button:disabled,
+    .btn-primary:disabled {
+        background: var(--brand-primary, #29235c) !important;
+        opacity: 0.5 !important;
+        cursor: not-allowed !important;
+    }
+}
+
+/* Components (optionnels) */
+@layer components {
+    .card {
+        @apply rounded-2xl shadow-lg p-4 bg-white;
+    }
+}
+
+/* Map no overlap */
+.leaflet-container {
+    /* Leaflet class */
+    z-index: 0 !important;
+}
+
+[data-island="contact"] .relative {
+    /* Map wrapper React */
+    z-index: 0;
+}

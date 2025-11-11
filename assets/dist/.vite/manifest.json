@@ -1,0 +1,57 @@
+{
+  "_leaflet-src-DmCmMVE_.js": {
+    "file": "assets/leaflet-src-DmCmMVE_.js",
+    "name": "leaflet-src",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.tsx"
+    ]
+  },
+  "node_modules/canvg/lib/index.es.js": {
+    "file": "assets/index.es-_EsckUqW.js",
+    "name": "index.es",
+    "src": "node_modules/canvg/lib/index.es.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.tsx"
+    ]
+  },
+  "node_modules/dompurify/dist/purify.es.mjs": {
+    "file": "assets/purify.es-B6FQ9oRL.js",
+    "name": "purify.es",
+    "src": "node_modules/dompurify/dist/purify.es.mjs",
+    "isDynamicEntry": true
+  },
+  "node_modules/html2canvas/dist/html2canvas.esm.js": {
+    "file": "assets/html2canvas.esm-DadlvMMh.js",
+    "name": "html2canvas.esm",
+    "src": "node_modules/html2canvas/dist/html2canvas.esm.js",
+    "isDynamicEntry": true
+  },
+  "node_modules/react-leaflet/lib/index.js": {
+    "file": "assets/index-o1VELQqa.js",
+    "name": "index",
+    "src": "node_modules/react-leaflet/lib/index.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "src/main.tsx",
+      "_leaflet-src-DmCmMVE_.js"
+    ]
+  },
+  "src/main.tsx": {
+    "file": "assets/main-C2INvcMz.js",
+    "name": "main",
+    "src": "src/main.tsx",
+    "isEntry": true,
+    "dynamicImports": [
+      "node_modules/html2canvas/dist/html2canvas.esm.js",
+      "node_modules/dompurify/dist/purify.es.mjs",
+      "node_modules/canvg/lib/index.es.js",
+      "_leaflet-src-DmCmMVE_.js",
+      "node_modules/react-leaflet/lib/index.js"
+    ],
+    "css": [
+      "assets/main-KgyJaTDR.css"
+    ]
+  }
+}

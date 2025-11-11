@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Petites utilitaires maquettage */
+.container {
+    @apply px-4 md:px-6 max-w-7xl mx-auto;
+}
+
+.site-header {
+    @apply sticky top-0 z-30 bg-white/80 backdrop-blur border-b;
+}
+
+.site-footer {
+    @apply mt-16 border-t py-10 text-center text-sm text-gray-600;
+}
+
+.btn {
+    @apply inline-flex items-center rounded-lg px-4 py-2 font-medium;
+}
+
+.btn-primary {
+    @apply bg-pink-600 text-white hover:opacity-90;
+}
