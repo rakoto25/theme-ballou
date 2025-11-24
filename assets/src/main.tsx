@@ -20,6 +20,10 @@ import MyAccount from "./islands/MyAccount";
 import LoginIsland from "./islands/login";
 import { register } from "./lib/register";
 import RegisterIsland from "./islands/Register";
+import CGV from "./islands/cgv";
+import Cookies from "./islands/cookies";
+import About from "./islands/about";
+import SimilarProduct from "./Components/Singleproduct/similarproduct";
 
 const registry: Record<string, React.FC<any>> = {
     header: Header,
@@ -39,7 +43,11 @@ const registry: Record<string, React.FC<any>> = {
     myaccount: MyAccount,
     contact: ContactIsland,
     login: LoginIsland,
+    cgv: CGV,
+    cookies: Cookies,
     register: RegisterIsland,
+    about: About,
+    similarproduct: SimilarProduct,
     footer: Footer
 };
 

@@ -2,12 +2,13 @@ export interface ProductData {
     id: number;
     slug: string;
     title: string;
-    price: string; // HTML du prix
-    description: string; // HTML
-    dimensions?: string; // Ex. : "160x230 cm"
-    images: number[]; // IDs d'images WP
+    price: string;
+    description: string;
+    dimensions?: string;
+    images: number[];
     add_to_cart_url?: string;
     stock_status?: string;
+    sku?: string;  // NOUVEAU : Ajout du SKU
     meta?: Record<string, any>;
 }
 
@@ -33,12 +34,13 @@ export const fetchProduct = async (slug: string): Promise<ProductData | null> =>
         id: prod.id,
         slug: prod.slug,
         title: prod.name,
-        price: prod.price_html || '', // HTML prix depuis API
+        price: prod.price_html || '',
         description: prod.description || '',
         dimensions,
-        images: prod.images?.map((img: any) => img.id) || [], // IDs depuis API
+        images: prod.images?.map((img: any) => img.id) || [],
         add_to_cart_url: prod.add_to_cart?.url || `/product/${prod.slug}/?add-to-cart=${prod.id}`,
         stock_status: prod.stock_status || 'instock',
+        sku: prod.sku || '',
         meta: prod.meta_data || {},
     };
 };

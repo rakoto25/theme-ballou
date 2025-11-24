@@ -12,13 +12,15 @@ interface Props {
     images?: number[];
     add_to_cart_url?: string;
     stock_status?: string;
+    sku?: string;  // NOUVEAU : Ajout du SKU dans les props
     meta?: Record<string, any>;
 }
 
 const SingleProduct: React.FC<Props> = ({
     id, slug: initialSlug, title: initialTitle, price: initialPrice,
     description: initialDescription, dimensions: initialDimensions,
-    images: initialImages, add_to_cart_url: initialAddToCartUrl, stock_status
+    images: initialImages, add_to_cart_url: initialAddToCartUrl, stock_status,
+    sku: initialSku  // NOUVEAU : Récupération du SKU
 }) => {
     const [product, setProduct] = useState<ProductData | null>(null);
     const [loading, setLoading] = useState(true);
@@ -43,7 +45,8 @@ const SingleProduct: React.FC<Props> = ({
                         dimensions: initialDimensions,
                         images: initialImages || [],
                         add_to_cart_url: initialAddToCartUrl,
-                        stock_status: stock_status || 'instock'
+                        stock_status: stock_status || 'instock',
+                        sku: initialSku || '',  // NOUVEAU : Hydratation du SKU
                     });
                 } else {
                     // Fallback API si props incomplets
@@ -57,7 +60,7 @@ const SingleProduct: React.FC<Props> = ({
             }
         };
         loadProduct();
-    }, [initialSlug, initialTitle, initialPrice, initialDescription, initialDimensions, initialImages, initialAddToCartUrl, stock_status, urlSlug]);
+    }, [initialSlug, initialTitle, initialPrice, initialDescription, initialDimensions, initialImages, initialAddToCartUrl, stock_status, initialSku, urlSlug]);  // NOUVEAU : Ajout de initialSku dans les dépendances
 
     // Handler ajout (comme ProductCard : API + event pour badge update)
     async function handleAdd(e: React.MouseEvent<HTMLButtonElement>) {
@@ -140,11 +143,23 @@ const SingleProduct: React.FC<Props> = ({
         </div>
     ) : null;
 
+    // NOUVEAU : Conteneur flex pour SKU (gauche) + bouton/message (droite)
+    const skuAndButton = (
+        <div className="flex justify-between items-center mb-4">
+            {product.sku ? (
+                <p className="text-sm text-muted">Ref: {product.sku}</p>
+            ) : null}
+            <div className="text-right">
+                {addToCartButton}
+            </div>
+        </div>
+    );
+
     return (
         <div className="product-summary space-y-4 mt-4 mb-6"> {/* Hérite charte via CSS base – espacement vertical auto */}
             <h1 className="text-2xl font-bold">{product.title}</h1> {/* Dark via CSS */}
             <div className="text-primary text-xl font-semibold" dangerouslySetInnerHTML={{ __html: product.price }} /> {/* UN SEUL PRIX : Grand, bleu primary, Woo HTML */}
-            {addToCartButton} {/* BOUTON SOUS PRIX : Stack vertical direct (centré par parent, no wrapper flex) */}
+            {skuAndButton}  {/* NOUVEAU : Remplace {addToCartButton} direct */}
             {dimensionsElement} {/* Injection flat, no nesting */}
             <hr className="border-gray-300 my-6" /> {/* Standard gris clair (≈ primary/20) */}
             {descriptionElement} {/* Description bas, flat */}
