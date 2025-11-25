@@ -1,9 +1,6 @@
-// assets/src/islands/Header.tsx
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import CartBadge from "../Components/CartBadge";
-import Offcanvas from "../Components/Header/Offcanvas"; // Adapté pour les props
-
-// ✅ logo par défaut
+import Offcanvas from "../Components/Header/Offcanvas";
 import logoDefault from "../images/logo-ballou.png";
 
 const BRAND = {
@@ -12,266 +9,200 @@ const BRAND = {
     dark: "#1b1919",
 };
 
-/* ============================
-   Helpers REST & URL
-============================ */
 function restBaseSite(): string {
-    const s = (window as any).__BALLOU__?.restBaseSite as string | undefined;
-    return (s && typeof s === "string") ? (s.endsWith("/") ? s : s + "/") : "/wp-json/wc/v3/"; // Fix: WC REST pour products
+    const s = (window as any).__BALLOU__?.restBaseSite;
+    return s ? (s.endsWith("/") ? s : s + "/") : "/wp-json/wc/v3/";
 }
 
 function getHomeURL(): string {
-    const injected = (window as any).__BALLOU__?.home as string | undefined;
+    const injected = (window as any).__BALLOU__?.home;
     if (injected) return injected.endsWith("/") ? injected : injected + "/";
     const linkEl = document.querySelector('link[rel="home"]') as HTMLLinkElement | null;
     if (linkEl?.href) return linkEl.href.endsWith("/") ? linkEl.href : linkEl.href + "/";
     try {
-        const { origin, pathname } = window.location;
-        const parts = pathname.split("/").filter(Boolean);
-        const first = parts[0];
-        const looksLikeSubdir = !!first && (
-            parts.includes("produit") ||
-            parts.includes("product-category") ||
-            parts.includes("categorie-produit") ||
-            parts.includes("panier") ||
-            parts.includes("mon-compte") ||
-            parts.includes("recherche")
-        );
-        const base = looksLikeSubdir ? `${origin}/${first}/` : origin + "/";
-        return base.endsWith("/") ? base : base + "/";
+        const { origin } = window.location;
+        return origin + "/";
     } catch {
         return "/";
     }
 }
 
-function joinURL(base: string, path: string): string {
-    if (!base) base = "/";
-    if (!path) return base;
+function joinURL(base: string, path: string) {
     const b = base.endsWith("/") ? base.slice(0, -1) : base;
-    const p = path.startsWith("/") ? path : `/${path}`;
+    const p = path.startsWith("/") ? path : "/" + path;
     return b + p;
 }
 
 function absURLOrJoin(base: string, href?: string | null): string {
     if (!href) return base;
     try {
-        const u = new URL(href);
-        return u.toString();
+        return new URL(href).toString();
     } catch {
         return joinURL(base, href);
     }
 }
 
-/* ============================
-   Vérification User & Fetchers
-============================ */
 function isUserLoggedIn(): boolean {
-    try {
-        const g =
-            (window as any).__BALLOU__?.isLoggedIn ??
-            (window as any).wpApiSettings?.isLoggedIn ??
-            false;
-        return Boolean(g);
-    } catch {
-        return false;
-    }
+    return Boolean(
+        (window as any).__BALLOU__?.isLoggedIn ??
+        (window as any).wpApiSettings?.isLoggedIn ??
+        false
+    );
 }
 
-type WPAny = any;
-
 async function fetchJsonPublic(url: string) {
-    const res = await fetch(url, { method: "GET", credentials: "omit" });
-    if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+    const res = await fetch(url, { credentials: "omit" });
+    if (!res.ok) throw new Error(await res.text());
     return res.json();
 }
 
-async function getCategoriesForMenu(): Promise<WPAny[]> {
-    const base = restBaseSite().replace('/wc/v3/', '/site-info/v1/'); // Mix pour categories, ajustez si besoin
-    try {
-        return await fetchJsonPublic(`${base}product-categories?per_page=100`);
-    } catch {
-        return [];
-    }
+async function getCategoriesForMenu() {
+    const base = restBaseSite().replace("/wc/v3/", "/site-info/v1/");
+    return fetchJsonPublic(`${base}product-categories?per_page=100`);
 }
 
-async function getSiteLogoFromApi(): Promise<string | null> {
-    const base = restBaseSite().replace('/wc/v3/', '/site-info/v1/');
+async function getSiteLogoFromApi() {
+    const base = restBaseSite().replace("/wc/v3/", "/site-info/v1/");
     try {
-        const data = await fetchJsonPublic(`${base}site-logo`);
-        return (data?.url || data?.logo || null) as string | null;
+        const d = await fetchJsonPublic(`${base}site-logo`);
+        return d?.url || d?.logo || null;
     } catch {
         return null;
     }
 }
 
-async function searchProducts(term: string): Promise<WPAny[]> {
+async function searchProducts(term: string) {
     if (!term.trim()) return [];
-    const wcBase = restBaseSite(); // /wp-json/wc/v3/
-    const res = await fetch(`${wcBase}products?search=${encodeURIComponent(term)}&per_page=5&status=publish`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    return Array.isArray(data) ? data : [];
+    const base = restBaseSite();
+    const res = await fetch(`${base}products?search=${encodeURIComponent(term)}&per_page=5`);
+    return res.ok ? res.json() : [];
 }
 
-/* ============================
-   Helpers Affichage & Utils
-============================ */
 const getCatLabel = (c: any) => c?.label ?? c?.name ?? c?.slug ?? "Catégorie";
-const isUncategorized = (c: any) => (c?.slug ?? "").toLowerCase().includes("non");
-const collatorFR = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
+const isUncategorized = (c: any) => (c?.slug ?? "").toLowerCase().includes("non-cl");
+const collatorFR = new Intl.Collator("fr", { numeric: true, sensitivity: "base" });
 
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number) {
-    let timeout: NodeJS.Timeout;
+function debounce<T extends (...args: any[]) => void>(fn: T, wait: number) {
+    let timeout: any;
     return (...args: Parameters<T>) => {
         clearTimeout(timeout);
-        timeout = setTimeout(() => func(...args), wait);
+        timeout = setTimeout(() => fn(...args), wait);
     };
 }
 
-/** Détecte si sur page produits/recherche pour sync React sans reload */
-function isOnProductsPage(): boolean {
-    if (typeof window === "undefined") return false;
-    const pathname = window.location.pathname.toLowerCase();
-    return pathname.includes('recherche') || pathname.includes('boutique') || pathname.includes('shop') || pathname.includes('product-category') || pathname.includes('categorie-produit') || pathname.includes('produits');
-}
-
-/** Dispatch event pour ProductsClient (seulement sur submit, pas onChange) */
-function dispatchSearchUpdate(term: string) {
-    if (typeof window !== "undefined") {
-        console.log('Header dispatching search-updated on submit:', term); // Debug
-        document.dispatchEvent(new CustomEvent("search-updated", { detail: { term } }));
-    }
-}
-
-/* ============================
-   Composant Principal
-============================ */
 export default function Header() {
     const [rayonsOpen, setRayonsOpen] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [categories, setCategories] = useState<any[]>([]);
-    const [loadingCategories, setLoadingCategories] = useState(true);
+    const [loadingCategories, setLoading] = useState(true);
     const [logo, setLogo] = useState<string | null>(null);
-    const [headerSearchValue, setHeaderSearchValue] = useState("");
-    const [searchResults, setSearchResults] = useState<WPAny[]>([]);
+    const [searchValue, setSearchValue] = useState("");
+    const [results, setResults] = useState<any[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const searchInputRef = useRef<HTMLInputElement>(null);
-    const lastKeystrokeTime = useRef(0); // Pour détecter frappe continue et clear dropdown
 
-    const homeURL = useMemo(() => (typeof window !== "undefined" ? getHomeURL() : "/"), []);
+    const searchInputRef = useRef<HTMLInputElement>(null);
+    const lastClickYRef = useRef(0);
+    const lastScrollTimeRef = useRef(0);
+
+    useEffect(() => {
+        const trackClickY = (e: MouseEvent) => {
+            lastClickYRef.current = e.clientY;
+        };
+        window.addEventListener("mousedown", trackClickY);
+        return () => window.removeEventListener("mousedown", trackClickY);
+    }, []);
+
+    useEffect(() => {
+        const el = document.querySelector(".header-categories-scroll");
+        if (!el) return;
+        const trackScroll = () => (lastScrollTimeRef.current = Date.now());
+        el.addEventListener("scroll", trackScroll, { passive: true });
+        return () => el.removeEventListener("scroll", trackScroll);
+    }, []);
+
+    const homeURL = getHomeURL();
     const hrefHome = homeURL;
-    const hrefAccount = useMemo(() => joinURL(homeURL, "mon-compte"), [homeURL]);
-    const hrefLogin = useMemo(() => joinURL(homeURL, "connexion"), [homeURL]);
-    const hrefCart = useMemo(() => joinURL(homeURL, "panier"), [homeURL]);
-    const actionSearch = useMemo(() => joinURL(homeURL, "recherche"), [homeURL]);
+    const hrefCart = joinURL(homeURL, "panier");
+    const hrefAccount = joinURL(homeURL, "mon-compte");
+    const hrefLogin = joinURL(homeURL, "connexion");
+    const actionSearch = joinURL(homeURL, "recherche");
 
     const handleAccountClick = () => {
-        const target = isUserLoggedIn() ? hrefAccount : hrefLogin;
-        window.location.href = target;
+        window.location.href = isUserLoggedIn() ? hrefAccount : hrefLogin;
     };
 
-    /* Catégories */
     useEffect(() => {
         (async () => {
             try {
-                setLoadingCategories(true);
-                const data = await getCategoriesForMenu();
-                setCategories(Array.isArray(data) ? data : []);
+                const cats = await getCategoriesForMenu();
+                setCategories(Array.isArray(cats) ? cats : []);
             } catch {
                 setCategories([]);
             } finally {
-                setLoadingCategories(false);
+                setLoading(false);
             }
         })();
     }, []);
 
-    /* Logo */
     useEffect(() => {
         (async () => {
-            const logoUrl = await getSiteLogoFromApi();
-            setLogo((prev) => prev || logoUrl || logoDefault);
+            const url = await getSiteLogoFromApi();
+            setLogo(url || logoDefault);
         })();
     }, []);
 
-    /* Focus auto */
-    useEffect(() => {
-        if ((searchOpen || rayonsOpen) && searchInputRef.current) {
-            searchInputRef.current.focus();
-        }
-    }, [searchOpen, rayonsOpen]);
-
-    /* Debounced API pour dropdown seulement (min 3 chars, frappe continue clear) */
-    const debouncedSearchDropdown = useCallback(
+    const debouncedSearch = useCallback(
         debounce(async (value: string) => {
-            const now = Date.now();
-            if (now - lastKeystrokeTime.current < 300) { // Frappe continue : clear et skip
-                setSearchResults([]);
-                return;
-            }
-            if (value.trim().length < 3) { // Augmenté à 3 pour éviter single word trop tôt
-                setSearchResults([]);
+            if (value.trim().length < 3) {
+                setResults([]);
                 return;
             }
             setIsSearching(true);
-            try {
-                const results = await searchProducts(value);
-                setSearchResults(results);
-            } catch {
-                setSearchResults([]);
-            } finally {
-                setIsSearching(false);
-            }
+            const r = await searchProducts(value);
+            setResults(Array.isArray(r) ? r : []);
+            setIsSearching(false);
         }, 300),
         []
     );
 
-    const onSearchInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const onSearchChange = useCallback((e: any) => {
         const value = e.target.value;
-        setHeaderSearchValue(value); // Immédiat : saisie fluide, pas de lag
-        lastKeystrokeTime.current = Date.now(); // Track pour frappe continue
-        debouncedSearchDropdown(value); // Debounce seulement API dropdown
-    }, [debouncedSearchDropdown]);
+        setSearchValue(value);
+        debouncedSearch(value);
+    }, []);
 
-    /* Submit handler : Dispatch + URL seulement sur Entrée/clic (pour grille) */
-    const handleSearchSubmit = useCallback((e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
-        const term = headerSearchValue.trim();
-        if (!term || term.length < 3) return; // Min 3 chars pour submit
-        if (isOnProductsPage()) {
-            // SPA-like : update URL sans reload + dispatch pour grille
-            const url = new URL(window.location.href);
-            url.searchParams.set('s', term);
-            window.history.pushState({}, '', url.toString());
-            dispatchSearchUpdate(term); // Trigger ProductsClient fetch/page 1
-            setSearchResults([]); // Clear dropdown après submit
-            if (searchOpen) setSearchOpen(false); // Close mobile
-        } else {
-            // Fallback : submit form vers /recherche?s=term
+    const onSearchSubmit = useCallback(
+        (e: any) => {
+            e.preventDefault();
+            if (searchValue.trim().length < 3) return;
             e.currentTarget.submit();
-        }
-    }, [headerSearchValue]);
+        },
+        [searchValue]
+    );
 
     const sortedParents = useMemo(() => {
-        const arr = categories.filter((c) => !isUncategorized(c));
-        arr.sort((a, b) => collatorFR.compare(getCatLabel(a), getCatLabel(b)));
-        return arr;
+        const arr = categories.filter(c => !isUncategorized(c));
+        return arr.sort((a, b) => collatorFR.compare(getCatLabel(a), getCatLabel(b)));
     }, [categories]);
 
     const top7 = sortedParents.slice(0, 7);
     const catHref = (c: any) => absURLOrJoin(homeURL, c?.url || `/product-category/${c?.slug}/`);
-    const productHref = (product: WPAny) => joinURL(homeURL, `produit/${product.slug}/`);
+    const productHref = (p: any) => joinURL(homeURL, `produit/${p.slug}`);
+
     const HEADER_H = 76;
 
     return (
         <>
             <header className="fixed inset-x-0 top-0 z-50">
+                {/* BARRE HAUTE */}
                 <div
                     className="text-white/60 shadow-[inset_0_-1px_0_rgba(255,255,255,.08)]"
                     style={{ backgroundColor: BRAND.blue }}
                 >
-                    <div className="mx-auto max-w-7xl px-4">
+                    <div className="max-w-7xl mx-auto px-4">
                         <div className="flex h-18 items-center gap-4 py-2 md:h-20">
-                            <a href={hrefHome} className="shrink-0 inline-flex items-center" aria-label="Accueil">
+                            {/* LOGO */}
+                            <a href={hrefHome} className="shrink-0 inline-flex items-center">
                                 <img
                                     src={logo || logoDefault}
                                     alt="ballou — Spécialiste d’intérieur"
@@ -286,148 +217,107 @@ export default function Header() {
                                     loading="eager"
                                 />
                             </a>
-
-                            {/* Recherche Mobile : Inline entre logo et actions quand ouvert */}
+                            {/* SEARCH MOBILE */}
                             <form
                                 action={actionSearch}
                                 method="GET"
-                                className={`md:hidden ${searchOpen ? 'flex flex-1 relative transition-all duration-300 opacity-100' : 'hidden opacity-0'}`}
-                                onSubmit={handleSearchSubmit}
+                                className={`md:hidden ${searchOpen ? "flex flex-1 relative" : "hidden"}`}
+                                onSubmit={onSearchSubmit}
                             >
-                                <div className="flex w-full items-center rounded-full bg-white/10 ring-1 ring-white/15 focus-within:bg-white/15 focus-within:ring-2">
+                                <div className="flex w-full items-center rounded-full bg-white/10 ring-1 ring-white/15">
                                     <input
-                                        id="search-mobile"
                                         name="s"
-                                        type="search"
-                                        placeholder="Rechercher un produit"
-                                        className="w-full bg-transparent px-5 py-2.5 text-white placeholder-white/60 outline-none"
-                                        value={headerSearchValue}
-                                        onChange={onSearchInputChange}
+                                        value={searchValue}
+                                        onChange={onSearchChange}
+                                        placeholder="Rechercher un produit…"
+                                        className="w-full bg-transparent px-5 py-2.5 text-white outline-none"
                                         ref={searchInputRef}
                                     />
-                                    <button
-                                        type="submit"
-                                        className="m-1 inline-flex items-center rounded-full p-2.5 hover:bg-white/10 focus:outline-none"
-                                    >
+                                    <button className="p-2.5">
                                         <SearchIcon className="h-5 w-5 text-white/80" />
                                     </button>
                                 </div>
-                                {/* Live Dropdown Mobile : Sous le form */}
-                                {isSearching && <div className="absolute inset-x-0 top-full bg-white/90 backdrop-blur-sm rounded-b-xl p-2 text-black z-10">Recherche en cours...</div>}
-                                {searchResults.length > 0 && (
-                                    <div className="absolute inset-x-0 top-full bg-white shadow-lg rounded-b-xl max-h-80 overflow-y-auto z-10 pointer-events-none" tabIndex={-1}>
-                                        {searchResults.map((product) => (
-                                            <a
-                                                key={product.id}
-                                                href={productHref(product)}
-                                                className="flex gap-3 p-3 hover:bg-gray-100 border-b last:border-b-0 block"
-                                                onClick={() => dispatchSearchUpdate("")}
-                                            >
+                                {isSearching && (
+                                    <div className="absolute top-full w-full bg-white p-2">
+                                        Recherche…
+                                    </div>
+                                )}
+                                {results.length > 0 && (
+                                    <div className="absolute top-full w-full bg-white rounded-b-xl shadow">
+                                        {results.map((p) => (
+                                            <a key={p.id} href={productHref(p)} className="flex p-3">
                                                 <img
-                                                    src={product.images?.[0]?.src || '/placeholder.jpg'}
-                                                    alt={product.name}
-                                                    className="w-12 h-12 object-cover rounded"
-                                                    loading="lazy"
+                                                    className="w-12 h-12 rounded object-cover"
+                                                    src={p.images?.[0]?.src}
+                                                    alt={p.name}
                                                 />
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-medium truncate">{product.name}</h4>
-                                                    {product.sku && <p className="text-sm text-gray-600">SKU: {product.sku}</p>}
-                                                    <p className="text-sm text-gray-500 line-clamp-2">{product.description?.substring(0, 100)}...</p>
+                                                <div className="ml-3">
+                                                    <div className="font-medium">{p.name}</div>
                                                 </div>
                                             </a>
                                         ))}
-                                        <a href={`${actionSearch}?s=${encodeURIComponent(headerSearchValue)}`} className="block p-3 text-center text-sm text-blue-600 hover:underline">Voir tous les résultats</a>
                                     </div>
                                 )}
                             </form>
-
-                            {/* Recherche Desktop */}
+                            {/* SEARCH DESKTOP */}
                             <form
                                 action={actionSearch}
                                 method="GET"
                                 className="hidden md:flex flex-1 relative"
-                                onSubmit={handleSearchSubmit}
+                                onSubmit={onSearchSubmit}
                             >
-                                <div className="flex w-full items-center rounded-full bg-white/10 ring-1 ring-white/15 focus-within:bg-white/15 focus-within:ring-2">
+                                <div className="flex w-full items-center rounded-full bg-white/10 ring-1 ring-white/15">
                                     <input
-                                        id="search-desktop"
-                                        name="s" // Fix: Woo standard "s"
-                                        type="search"
-                                        placeholder="Rechercher un produit"
-                                        className="w-full bg-transparent px-5 py-2.5 text-white placeholder-white/60 outline-none"
-                                        value={headerSearchValue}
-                                        onChange={onSearchInputChange}
+                                        name="s"
+                                        value={searchValue}
+                                        onChange={onSearchChange}
+                                        placeholder="Rechercher un produit…"
+                                        className="w-full bg-transparent px-5 py-2.5 text-white outline-none"
                                         ref={searchInputRef}
                                     />
-                                    <button
-                                        type="submit"
-                                        className="m-1 inline-flex items-center rounded-full p-2.5 hover:bg-white/10 focus:outline-none"
-                                    >
+                                    <button className="p-2.5">
                                         <SearchIcon className="h-5 w-5 text-white/80" />
                                     </button>
                                 </div>
-                                {/* Live Dropdown Desktop : Non-interactif pour focus input */}
-                                {isSearching && <div className="absolute inset-x-0 top-full bg-white/90 backdrop-blur-sm rounded-b-xl p-2 text-black z-10">Recherche en cours...</div>}
-                                {searchResults.length > 0 && (
-                                    <div className="absolute inset-x-0 top-full bg-white shadow-lg rounded-b-xl max-h-80 overflow-y-auto z-10 pointer-events-none" tabIndex={-1}> {/* pointer-events-none : pas d'interférence focus */}
-                                        {searchResults.map((product) => (
-                                            <a
-                                                key={product.id}
-                                                href={productHref(product)}
-                                                className="flex gap-3 p-3 hover:bg-gray-100 border-b last:border-b-0 block" // block pour liens
-                                                onClick={() => dispatchSearchUpdate("")} // Clear après redirect single
-                                            >
+                                {results.length > 0 && (
+                                    <div className="absolute top-full w-full bg-white shadow rounded-b-xl max-h-80 overflow-auto z-40">
+                                        {results.map((p) => (
+                                            <a key={p.id} href={productHref(p)} className="flex p-3">
                                                 <img
-                                                    src={product.images?.[0]?.src || '/placeholder.jpg'}
-                                                    alt={product.name}
-                                                    className="w-12 h-12 object-cover rounded"
-                                                    loading="lazy"
+                                                    className="w-12 h-12 rounded object-cover"
+                                                    src={p.images?.[0]?.src}
+                                                    alt={p.name}
                                                 />
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-medium truncate">{product.name}</h4>
-                                                    {product.sku && <p className="text-sm text-gray-600">SKU: {product.sku}</p>}
-                                                    <p className="text-sm text-gray-500 line-clamp-2">{product.description?.substring(0, 100)}...</p>
+                                                <div className="ml-3">
+                                                    <div className="font-medium">{p.name}</div>
                                                 </div>
                                             </a>
                                         ))}
-                                        <a href={`${actionSearch}?s=${encodeURIComponent(headerSearchValue)}`} className="block p-3 text-center text-sm text-blue-600 hover:underline">Voir tous les résultats</a>
                                     </div>
                                 )}
                             </form>
 
-                            {/* Actions : Search button mobile caché quand ouvert */}
+                            {/* ACTIONS */}
                             <div className="ml-auto flex items-center gap-1">
-                                {/* Search Mobile Button : Caché si ouvert */}
-                                <button
-                                    className={`md:hidden inline-flex items-center rounded-full p-2 hover:bg-white/10 transition-opacity ${searchOpen ? 'opacity-0 hidden' : 'opacity-100'}`}
-                                    onClick={() => setSearchOpen(true)}
-                                    aria-label="Recherche produits"
-                                >
-                                    <SearchIcon className="h-6 w-6 text-white/80" />
-                                </button>
+                                {!searchOpen && (
+                                    <button
+                                        className="md:hidden p-2"
+                                        onClick={() => setSearchOpen(true)}
+                                    >
+                                        <SearchIcon className="h-6 w-6 text-white/80" />
+                                    </button>
+                                )}
 
-                                {/* Mon Compte Mobile (après search, sans hamburger) */}
+                                {/* Mon compte: TOUJOURS visible, icône seule sur mobile */}
                                 <button
                                     onClick={handleAccountClick}
-                                    className="md:hidden inline-flex items-center rounded-full p-2 hover:bg-white/10"
-                                >
-                                    <UserIcon className="h-6 w-6 text-white/80" />
-                                </button>
-
-                                {/* Mon Compte Desktop */}
-                                <button
-                                    onClick={handleAccountClick}
-                                    className="hidden sm:inline-flex items-center gap-2 rounded-full px-3 py-2 hover:bg-white/10 hover:text-white transition"
+                                    className="flex items-center gap-2 p-2"
                                 >
                                     <UserIcon className="h-5 w-5 text-white/80" />
-                                    <span>Mon compte</span>
+                                    <span className="hidden sm:inline">Mon compte</span>
                                 </button>
 
-                                {/* Panier */}
-                                <a
-                                    href={hrefCart}
-                                    className="relative inline-flex items-center gap-2 rounded-full px-3 py-2 hover:bg-white/10 hover:text-white transition"
-                                >
+                                <a href={hrefCart} className="relative flex items-center gap-2 p-2">
                                     <CartIcon className="h-5 w-5 text-white/80" />
                                     <span className="hidden sm:inline">Panier</span>
                                     <CartBadge />
@@ -436,19 +326,18 @@ export default function Header() {
                         </div>
                     </div>
                 </div>
-
-                {/* Catégories Nav : Bouton "Tous" pour Offcanvas en mobile */}
-                <div className="text-white/80 ring-1 ring-black/5" style={{ backgroundColor: BRAND.blue }}>
-                    <div className="mx-auto max-w-7xl px-4">
-                        <nav className="flex items-center gap-2 overflow-x-auto py-2 no-scrollbar">
+                {/* BARRE DES CATEGORIES */}
+                <div className="text-white/80" style={{ backgroundColor: BRAND.blue }}>
+                    <div className="max-w-7xl mx-auto px-4">
+                        <nav className="header-categories-scroll flex gap-2 overflow-x-auto py-2 no-scrollbar">
                             {loadingCategories ? (
                                 <SkeletonChips />
                             ) : (
                                 top7.map((c) => (
                                     <a
-                                        key={c?.slug ?? c?.term_id}
+                                        key={c.slug}
                                         href={catHref(c)}
-                                        className="whitespace-nowrap rounded-full px-3 py-1.5 hover:bg-white/10 hover:text-white transition"
+                                        className="px-3 py-1.5 rounded-full whitespace-nowrap"
                                     >
                                         {getCatLabel(c)}
                                     </a>
@@ -456,67 +345,77 @@ export default function Header() {
                             )}
                             {sortedParents.length > 7 && (
                                 <button
-                                    type="button"
-                                    onClick={() => setRayonsOpen(true)}
-                                    className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2 py-1 text-sm whitespace-nowrap hover:bg-white/15 md:px-3 md:py-1.5 md:text-base md:gap-2"
+                                    onClick={(e) => {
+                                        const now = Date.now();
+                                        // Anti-scroll-trigger Safari
+                                        if (now - lastScrollTimeRef.current < 150) return;
+                                        // Anti click fantôme
+                                        if (Math.abs(e.clientY - lastClickYRef.current) > 3) return;
+                                        setRayonsOpen(true);
+                                    }}
+                                    className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10"
                                 >
-                                    <MenuIcon className="h-3 w-3 md:h-4 md:w-4 text-white/90" />
+                                    <MenuIcon className="h-4 w-4" />
                                     <span className="hidden md:inline">Tous les rayons</span>
                                     <span className="md:hidden">Tous</span>
                                 </button>
                             )}
                         </nav>
                     </div>
-                    <div className="h-1 w-full" style={{ backgroundColor: `${BRAND.orange}CC` }} />
+                    <div className="h-1 w-full" style={{ backgroundColor: BRAND.orange }} />
                 </div>
-
-                {/* Offcanvas : Passez props pour search sync */}
                 <Offcanvas
                     open={rayonsOpen}
                     onClose={() => setRayonsOpen(false)}
-                    includeSearch={true}
-                    searchValue={headerSearchValue}
-                    onSearchChange={onSearchInputChange}
-                    onSearchSubmit={handleSearchSubmit}
-                    searchResults={searchResults}
-                    isSearching={isSearching}
-                    categories={categories}
-                    homeURL={homeURL}
-                    searchInputRef={searchInputRef}
                 />
             </header>
-
-            <div style={{ height: HEADER_H }} aria-hidden="true" />
+            <div style={{ height: HEADER_H }} />
         </>
     );
 }
 
-/* Icônes */
-function SearchIcon(props: React.SVGProps<SVGSVGElement>) {
+/* ============================
+   Icons
+============================ */
+function SearchIcon(props: any) {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-            <path strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.8-4.8m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0z" />
+            <path
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="m21 21-4.8-4.8m2.3-5.2a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0z"
+            />
         </svg>
     );
 }
-function MenuIcon(props: React.SVGProps<SVGSVGElement>) {
+function MenuIcon(props: any) {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
             <path strokeWidth="1.8" strokeLinecap="round" d="M4 6h16M4 12h16M4 18h16" />
         </svg>
     );
 }
-function CartIcon(props: React.SVGProps<SVGSVGElement>) {
+function CartIcon(props: any) {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-            <path strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" d="M3 4h2l2 12h10l2-8H7M9 20a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm10 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z" />
+            <path
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3 4h2l2 12h10l2-8H7M9 20a1 1 0 1 1-2 0 1 1 0 0 1 2 0Zm10 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0Z"
+            />
         </svg>
     );
 }
-function UserIcon(props: React.SVGProps<SVGSVGElement>) {
+function UserIcon(props: any) {
     return (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-            <path strokeWidth="1.8" strokeLinecap="round" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm7 8a7 7 0 0 0-14 0" />
+            <path
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5Zm7 8a7 7 0 0 0-14 0"
+            />
         </svg>
     );
 }

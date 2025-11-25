@@ -142,3 +142,8 @@ price, amount, button, added_to_cart, btn-primary;
     /* Map wrapper React */
     z-index: 0;
 }
+
+.product-card {
+    border-color: #eceae6 !important;
+    /* ton gris premium */
+}

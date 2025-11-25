@@ -1,36 +1,31 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-const DEBOUNCE_MS = 300; // Délai pour consolider changements prix (ms)
+const DEBOUNCE_MS = 300;
 
 export interface FiltersSidebarProps {
     search: string;
     setSearch: (v: string) => void;
-
     categories: { slug: string; name: string }[];
     selected: Set<string>;
     toggleCategory: (slug: string) => void;
     clearCategories: () => void;
-
     minPrice: number;
     maxPrice: number;
     priceRange: [number, number];
     setPriceRange: (r: [number, number]) => void;
-
-    /** Couleur marque (ex: #e94e1b) */
     brandPrimary?: string;
-    /** Hauteur du header fixe pour le sticky (px). Sinon on lit --header-h (fallback 76) */
     headerHeightPx?: number;
 }
 
-// Hook debounce pour setPriceRange (évite floods d'API sur sliders/inputs)
-function useDebounceSetPrice(setPriceRange: (r: [number, number]) => void, delay: number = DEBOUNCE_MS) {
+function useDebounceSetPrice(setPriceRange: (r: [number, number]) => void, delay: number) {
     const timeoutRef = useRef<NodeJS.Timeout>();
-    return useCallback((newRange: [number, number]) => {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        timeoutRef.current = setTimeout(() => {
-            setPriceRange(newRange);
-        }, delay);
-    }, [setPriceRange, delay]);
+    return useCallback(
+        (r: [number, number]) => {
+            clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => setPriceRange(r), delay);
+        },
+        [setPriceRange, delay]
+    );
 }
 
 export default function FiltersSidebar({
@@ -45,232 +40,229 @@ export default function FiltersSidebar({
     priceRange,
     setPriceRange,
     brandPrimary = "#e94e1b",
-    headerHeightPx,
+    headerHeightPx = 76
 }: FiltersSidebarProps) {
+
     const [min, max] = priceRange;
-    const styleVar = {
-        ["--brand-primary" as any]: brandPrimary,
-        ["--header-h" as any]: `${headerHeightPx ?? 76}px`,
-    } as React.CSSProperties;
-
     const [openCats, setOpenCats] = useState(false);
-    const wrapRef = useRef<HTMLDivElement>(null);
-    const listboxRef = useRef<HTMLDivElement>(null);
-    const inputId = "filters-search-input";
-
-    // Debounced setter pour prix
-    const debouncedSetPrice = useDebounceSetPrice(setPriceRange);
-
-    // Fermer le menu au clic extérieur / ESC
-    useEffect(() => {
-        function onDocClick(e: MouseEvent) {
-            if (!wrapRef.current) return;
-            if (!wrapRef.current.contains(e.target as Node)) setOpenCats(false);
-        }
-        function onKey(e: KeyboardEvent) {
-            if (e.key === "Escape") setOpenCats(false);
-        }
-        document.addEventListener("mousedown", onDocClick);
-        document.addEventListener("keydown", onKey);
-        return () => {
-            document.removeEventListener("mousedown", onDocClick);
-            document.removeEventListener("keydown", onKey);
-        };
-    }, []);
-
-    // helpers prix
-    const clamp = (v: number, lo: number, hi: number) =>
-        Math.min(Math.max(Number.isFinite(v) ? v : lo, lo), hi);
-
-    // Handlers debounced pour inputs et sliders
-    const onMinBox = (v: string) => {
-        const n = clamp(Number(v || 0), minPrice, max);
-        debouncedSetPrice([n, max]);
-    };
-    const onMaxBox = (v: string) => {
-        const n = clamp(Number(v || 0), min, maxPrice);
-        debouncedSetPrice([min, n]);
-    };
-
-    const onMinRange = (v: string) => {
-        const n = clamp(Number(v), minPrice, max);
-        debouncedSetPrice([n, max]);
-    };
-    const onMaxRange = (v: string) => {
-        const n = clamp(Number(v), min, maxPrice);
-        debouncedSetPrice([min, n]);
-    };
-
+    const [isMobileOpen, setIsMobileOpen] = useState(false);
     const selectedCount = selected.size;
 
+    const wrapperRef = useRef<HTMLDivElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+
+    const touchStartX = useRef(0);
+    const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0].clientX; };
+    const onTouchMove = (e: React.TouchEvent) => {
+        if (e.touches[0].clientX - touchStartX.current < -60) setIsMobileOpen(false);
+    };
+
+    useEffect(() => {
+        const onEsc = (e: KeyboardEvent) => {
+            if (e.key === "Escape") {
+                setOpenCats(false);
+                setIsMobileOpen(false);
+            }
+        };
+        document.addEventListener("keydown", onEsc);
+        return () => document.removeEventListener("keydown", onEsc);
+    }, []);
+
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (
+                popoverRef.current &&
+                !popoverRef.current.contains(e.target as Node) &&
+                wrapperRef.current &&
+                !wrapperRef.current.contains(e.target as Node)
+            ) {
+                setOpenCats(false);
+            }
+        };
+        document.addEventListener("mousedown", handler);
+        return () => document.removeEventListener("mousedown", handler);
+    }, []);
+
+    const clamp = (v: number, lo: number, hi: number) =>
+        Math.min(Math.max(Number(v) || lo, lo), hi);
+
+    const debouncedSetPrice = useDebounceSetPrice(setPriceRange, DEBOUNCE_MS);
+
+    const onMinBox = (v: string) => debouncedSetPrice([clamp(v, minPrice, max), max]);
+    const onMaxBox = (v: string) => debouncedSetPrice([min, clamp(v, min, maxPrice)]);
+    const onMinRange = (v: string) => debouncedSetPrice([clamp(v, minPrice, max), max]);
+    const onMaxRange = (v: string) => debouncedSetPrice([min, clamp(v, min, maxPrice)]);
+
+    const filteredCats = categories;
+
+    // Toggle catégories sur input clique
+    const onInputClick = () => setOpenCats(o => !o);
+
+    // Décalage vertical supplémentaire du sidebar et du bouton mobile
+    const VERTICAL_OFFSET_MOBILE = 70; // Ajuste ici (ex: 70px)
+    const mobileSidebarTop = `calc(${headerHeightPx}px + ${VERTICAL_OFFSET_MOBILE}px)`;
+
     return (
-        <aside
-            className="sticky h-fit rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm"
-            style={{
-                ...styleVar,
-                top: `calc(var(--header-h, 76px) + 50px)`  // MODIF: Ajout de 20px d'espace en haut pour éviter chevauchement header
-            }}
-        >
-            {/* Recherche + sélecteur Catégories */}
-            <div className="mb-6" ref={wrapRef}>
-                <label
-                    htmlFor={inputId}
-                    className="mb-2 block text-xs font-semibold uppercase tracking-widest text-zinc-500"
+        <>
+            {/* OVERLAY MOBILE */}
+            <div
+                className={`
+         fixed inset-0 bg-black/40 transition-opacity duration-300 md:hidden
+         ${isMobileOpen ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}
+       `}
+                style={{ zIndex: 30 }}
+                onClick={() => setIsMobileOpen(false)}
+            />
+
+            {/* MOBILE TOGGLE BUTTON */}
+            {!isMobileOpen && (
+                <button
+                    className="
+           fixed md:hidden left-3 
+           z-45
+           h-12 w-12 flex items-center justify-center rounded-full
+           text-white shadow-lg transition-all
+         "
+                    style={{
+                        backgroundColor: brandPrimary,
+                        top: `calc(50% + ${VERTICAL_OFFSET_MOBILE}px)`,
+                    }}
+                    onClick={() => setIsMobileOpen(true)}
                 >
-                    Recherche / Catégories
-                </label>
+                    {/* Chevron bas : ouvrir */}
+                    <svg viewBox="0 0 24 24" className="w-7 h-7" stroke="currentColor" fill="none" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                </button>
+            )}
 
-                <div className="relative">
-                    <input
-                        id={inputId}
-                        type="search"
-                        value={search}
-                        onChange={(e) => setSearch(e.target.value)}
-                        onFocus={() => setOpenCats(true)}
-                        placeholder="Rechercher un produit…"
-                        className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2 pr-24 text-sm outline-none"
-                        autoComplete="off"
-                        style={styleVar}
-                    />
-                    <button
-                        type="button"
-                        aria-haspopup="listbox"
-                        aria-expanded={openCats}
-                        aria-controls="cats-popover"
-                        onClick={() => setOpenCats((v) => !v)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:bg-zinc-100"
-                        style={styleVar}
-                    >
-                        Catégories
-                    </button>
+            {/* SIDEBAR */}
+            <aside
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                className={`
+          fixed inset-y-0 left-0 w-72 bg-white shadow-xl p-4 rounded-r-2xl
+          z-40
+          transition-transform duration-300
+          md:static md:w-[260px] md:rounded-2xl md:shadow-md md:translate-x-0
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+                style={{
+                    top: isMobileOpen ? mobileSidebarTop : `calc(${headerHeightPx}px + 10px)`,
+                    height: "420px",
+                    maxHeight: "420px",
+                    overflowY: "auto"
+                }}
+            >
 
-                    {openCats && (
-                        <div
-                            id="cats-popover"
-                            ref={listboxRef}
-                            className="absolute left-0 top-full z-20 mt-2 w-full overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-lg"
-                            role="listbox"
-                            aria-label="Sélectionner des catégories"
+                {/* CLOSE MOBILE */}
+                <button
+                    onClick={() => setIsMobileOpen(false)}
+                    className="md:hidden absolute right-3 top-3 text-zinc-600"
+                >
+                    ✕
+                </button>
+
+                {/* SEARCH + CATEGORIES */}
+                <div className="mb-6" ref={wrapperRef}>
+                    <label className="block mb-2 text-xs uppercase font-semibold tracking-widest text-zinc-500">
+                        Recherche / Catégories
+                    </label>
+
+                    <div className="relative">
+                        <input
+                            value={search}
+                            readOnly
+                            onClick={onInputClick}
+                            tabIndex={0}
+                            placeholder="Rechercher…"
+                            className="w-full rounded-xl border border-zinc-300 px-3 py-2 pr-20 text-sm bg-white cursor-pointer select-none"
+                        />
+
+                        <button
+                            type="button"
+                            onClick={() => setOpenCats((v) => !v)}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-3 py-1.5 
+                     bg-zinc-100 hover:bg-zinc-200 rounded-md text-[var(--brand-primary)]"
                         >
-                            <div className="max-h-64 overflow-y-auto p-3">
-                                <div className="mb-2 flex items-center justify-between">
-                                    <span className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                                        Sélectionner des catégories
-                                    </span>
-                                    <button
-                                        onClick={() => {
-                                            clearCategories();
-                                            // ne ferme pas de force, laisse l’utilisateur continuer
-                                        }}
-                                        className="text-xs text-[var(--brand-primary)] hover:underline"
-                                        style={styleVar}
-                                    >
-                                        Effacer
-                                    </button>
-                                </div>
+                            Catégories
+                        </button>
 
-                                <div className="grid grid-cols-1 gap-2">
-                                    {categories.map((c) => {
-                                        const checked = selected.has(c.slug);
-                                        const optionId = `cat-${c.slug}`;
-                                        return (
-                                            <label
-                                                key={c.slug}
-                                                htmlFor={optionId}
-                                                className="flex cursor-pointer items-center gap-2 text-sm"
-                                                role="option"
-                                                aria-selected={checked}
-                                            >
-                                                <input
-                                                    id={optionId}
-                                                    type="checkbox"
-                                                    checked={checked}
-                                                    onChange={() => toggleCategory(c.slug)}
-                                                    className="h-4 w-4 rounded border-zinc-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
-                                                    style={styleVar}
-                                                />
-                                                <span className="select-none">{c.name}</span>
-                                            </label>
-                                        );
-                                    })}
-                                </div>
+                        {openCats && (
+                            <div
+                                ref={popoverRef}
+                                className="absolute left-0 top-full mt-2 w-full bg-white rounded-2xl shadow-xl 
+                     p-3 border border-zinc-200 max-h-52 overflow-y-auto z-45"
+                            >
+                                {filteredCats.length === 0 ? (
+                                    <p className="text-xs text-zinc-500 text-center py-2">Aucune catégorie trouvée</p>
+                                ) : (
+                                    filteredCats.map((c) => (
+                                        <label key={c.slug} className="flex items-center gap-2 py-1 cursor-pointer text-sm">
+                                            <input
+                                                type="checkbox"
+                                                checked={selected.has(c.slug)}
+                                                onChange={() => toggleCategory(c.slug)}
+                                                className="text-[var(--brand-primary)]"
+                                            />
+                                            {c.name}
+                                        </label>
+                                    ))
+                                )}
                             </div>
+                        )}
+                    </div>
 
-                            <div className="flex items-center justify-end gap-2 border-t border-zinc-200 bg-zinc-50 p-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setOpenCats(false)}
-                                    className="rounded-lg px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-                                >
-                                    Fermer
-                                </button>
-                            </div>
-                        </div>
+                    {selectedCount > 0 && (
+                        <p className="text-xs mt-1 text-zinc-500 truncate">
+                            {selectedCount} catégorie{selectedCount > 1 ? "s" : ""}
+                        </p>
                     )}
                 </div>
 
-                {selectedCount > 0 && (
-                    <p className="mt-1 truncate text-xs text-zinc-500">
-                        {selectedCount} catégorie{selectedCount > 1 ? "s" : ""} sélectionnée
-                        {selectedCount > 1 ? "s" : ""}
-                    </p>
-                )}
-            </div>
-
-            {/* Prix */}
-            <div className="mb-6">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                    Prix
-                </span>
-
-                {/* Inputs numériques */}
-                <div className="flex items-center gap-2 text-sm">
-                    <input
-                        type="number"
-                        inputMode="numeric"
-                        min={minPrice}
-                        max={maxPrice}
-                        value={Number.isFinite(min) ? min : minPrice}
-                        onChange={(e) => onMinBox(e.target.value)}
-                        className="w-24 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm"
-                    />
-                    <span>—</span>
-                    <input
-                        type="number"
-                        inputMode="numeric"
-                        min={minPrice}
-                        max={maxPrice}
-                        value={Number.isFinite(max) ? max : maxPrice}
-                        onChange={(e) => onMaxBox(e.target.value)}
-                        className="w-24 rounded-lg border border-zinc-300 bg-white px-2 py-1 text-sm"
-                    />
-                </div>
-
-                {/* Sliders superposés */}
-                <div className="mt-3">
-                    <input
-                        type="range"
-                        min={minPrice}
-                        max={maxPrice}
-                        value={Number.isFinite(min) ? min : minPrice}
-                        onChange={(e) => onMinRange(e.target.value)}
-                        className="w-full cursor-pointer"
-                    />
-                    <input
-                        type="range"
-                        min={minPrice}
-                        max={maxPrice}
-                        value={Number.isFinite(max) ? max : maxPrice}
-                        onChange={(e) => onMaxRange(e.target.value)}
-                        className="-mt-2 w-full cursor-pointer"
-                    />
-
-                    <div className="mt-1 text-xs text-zinc-600">
-                        {new Intl.NumberFormat("fr-MG").format(min)} —{" "}
-                        {new Intl.NumberFormat("fr-MG").format(max)} Ar
+                {/* PRICE */}
+                <div className="mb-6">
+                    <span className="block text-xs uppercase tracking-widest font-semibold text-zinc-500 mb-2">
+                        Prix
+                    </span>
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="number"
+                            className="w-24 px-2 py-1 border rounded"
+                            value={min}
+                            onChange={(e) => onMinBox(e.target.value)}
+                        />
+                        <span>—</span>
+                        <input
+                            type="number"
+                            className="w-24 px-2 py-1 border rounded"
+                            value={max}
+                            onChange={(e) => onMaxBox(e.target.value)}
+                        />
+                    </div>
+                    <div className="mt-3">
+                        <input
+                            type="range"
+                            min={minPrice}
+                            max={maxPrice}
+                            value={min}
+                            onChange={(e) => onMinRange(e.target.value)}
+                            className="w-full"
+                        />
+                        <input
+                            type="range"
+                            min={minPrice}
+                            max={maxPrice}
+                            value={max}
+                            onChange={(e) => onMaxRange(e.target.value)}
+                            className="-mt-2 w-full"
+                        />
+                        <div className="text-xs mt-1 text-zinc-600">
+                            {min.toLocaleString("fr-MG")} — {max.toLocaleString("fr-MG")} Ar
+                        </div>
                     </div>
                 </div>
-            </div>
-        </aside>
+            </aside>
+        </>
     );
 }

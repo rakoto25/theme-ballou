@@ -423,7 +423,7 @@ export default function ProductsClient({
                 </button>
             </header>
 
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(260px,30%)_minmax(0,70%)]">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-[260px_1fr]">
                 {/* Sidebar : Masquée en mode recherche pure */}
                 {!isSearchActive ? (
                     <FiltersSidebar

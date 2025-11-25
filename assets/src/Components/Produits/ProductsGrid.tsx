@@ -77,7 +77,7 @@ export default function ProductsGrid({ products }: { products: CardInput[] }) {
     };
 
     return (
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {products.map((p) => {
                 const isAdding = addingId === p.id;
                 const isAdded = !!addedMap[p.id];
@@ -91,9 +91,11 @@ export default function ProductsGrid({ products }: { products: CardInput[] }) {
                 return (
                     <article
                         key={p.id}
-                        className="group relative overflow-hidden rounded-2xl border bg-white shadow-sm transition hover:-translate-y-[2px] hover:shadow-md"
-                        style={{ borderColor: brandDark }}
-                    >
+                        className="group relative overflow-hidden rounded-2xl border bg-white
+                        shadow-[0_2px_8px_rgba(220,220,220,0.14)]
+                        hover:shadow-[0_8px_26px_0_rgba(200,200,200,0.24)]
+                        transition hover:-translate-y-[2px]"
+                        style={{ borderColor: "#f4f4f4" }}>
                         {/* Lien vers la fiche produit */}
                         <a href={p.permalink} className="block" aria-label={p.title}>
                             <div className="relative aspect-[4/5] w-full overflow-hidden">
